@@ -15,7 +15,7 @@ class CNNModule(nn.Module):
     def __init__(self, input_channel=1, output_channel=512):
         super(CNNModule, self).__init__()
         # To-do: Define the layers for the CNN Module
-        self.model = torch.hub.load('pytorch/vision:v0.10.0', 'resnet18', weights="ResNet18_Weights.DEFAULT")
+        self.model = torch.hub.load('pytorch/vision:v0.10.0', 'resnet34', weights="ResNet34_Weights.DEFAULT")
         self.model = torch.nn.Sequential(*list(self.model.children())[:-2])
 
     def forward(self, input):
