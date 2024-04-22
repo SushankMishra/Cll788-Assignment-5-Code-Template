@@ -13,6 +13,7 @@ import time
 import argparse
 
 import torch
+import torch.nn as nn
 import time
 import torch.utils.data
 import torch.optim as optim
@@ -47,18 +48,21 @@ def train(args, device):
     # To-do: Create an instance of the ConverterForCTC
         # Use the args.character to initialize the ConverterForCTC
         # Set the number of classes in the args using the length of the character in the converter
-    
+    converter = ConverterForCTC(args.character)
+    args.num_class = len(converter.character)
     # To-do: Create an instance of the Model
         # Use the args to initialize the Model
         # Print the number of trainable parameters in the model
         # Move the model to the device
-    
+    model = Model(args)
+    print("Number of trainable parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
+    model.to(device)
     # To-do: Define the loss function using torch.nn.CTCLoss
         # Set the blank label to 0
         # Set the reduction to 'mean'
-
+    criterion = nn.CTCLoss(blank=0, reduction='mean')
     # To-do: Define the optimizer
-    
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
     init_time = time.time()
     # To-do: Write the training loop
         # Iterate over the training data
@@ -70,9 +74,57 @@ def train(args, device):
         # Print the training and validation loss and accuracy
         # Save the best model based on the validation loss
         # Plot the loss curve (Both training and validation loss)
+    train_loss_list = []
+    valid_loss_list = []
+    for epoch in range(args.num_epochs):
+        model.train()
+        train_loss = 0.0
+        for i, (images, labels) in enumerate(train_loader):
+            images = images.to(device)
+            labels, label_lengths = converter.encode(labels)
+            labels = labels.to(device)
+            
+            optimizer.zero_grad()
+            
+            outputs = model(images)
+            output_lengths = torch.IntTensor([outputs.size(1)] * outputs.size(0))
+            
+            loss = criterion(outputs, labels, output_lengths, label_lengths)
+            loss.backward()
+            optimizer.step()
+            
+            train_loss += loss.item()
+            
+            if (i + 1) % 10 == 0:
+                print('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'
+                      .format(epoch+1, args.num_epochs, i+1, len(train_loader), loss.item()))
+        
+    train_loss_list.append(train_loss / len(train_loader))
+
+    model.eval()
+    with torch.no_grad():
+        valid_loss = validation(model, valid_loader, criterion, converter, device)
+        valid_loss_list.append(valid_loss)
     
+    print('Epoch [{}/{}], Train Loss: {:.4f}, Valid Loss: {:.4f}'
+        .format(epoch+1, args.num_epochs, train_loss / len(train_loader), valid_loss))
+    
+    # Save the best model based on the validation loss
+    if epoch == 0 or valid_loss < min(valid_loss_list):
+        torch.save(model.state_dict(), os.path.join(args.output_dir, 'best_model.pth'))
+        print("Saved best model")
+
+
     end_time = time.time()
     print("Total time taken for training: " + str(end_time-init_time))
+
+    plt.plot(train_loss_list, label='Train Loss')
+    plt.plot(valid_loss_list, label='Validation Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.title('Training and Validation Loss')
+    plt.legend()
+    plt.show()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

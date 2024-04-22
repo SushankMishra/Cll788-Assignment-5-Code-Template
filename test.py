@@ -9,6 +9,7 @@ Copyright © 2024. All rights reserved.
 """
 
 import torch
+import torch.nn as nn
 import argparse
 from tqdm import tqdm
 import torch.utils.data
@@ -24,7 +25,35 @@ def validation(model, criterion, evaluation_loader, converter, args, device):
         # Calculate the loss using the criterion
         # Decode the model predictions using the converter
         # Return the average loss and accuracy
-
+    model.eval()
+    total_loss = 0
+    total_correct = 0
+    total_samples = 0
+    
+    with torch.no_grad():
+        for images, labels in tqdm(evaluation_loader, desc='Validation', leave=False):
+            images = images.to(device)
+            labels, label_lengths = converter.encode(labels)
+            labels = labels.to(device)
+            
+            outputs = model(images)
+            output_lengths = torch.IntTensor([outputs.size(1)] * outputs.size(0))
+            
+            loss = criterion(outputs, labels, output_lengths, label_lengths)
+            total_loss += loss.item() * images.size(0)
+            
+            _, preds = outputs.max(2)
+            preds_str = converter.decode(preds, output_lengths)
+            
+            for pred, target in zip(preds_str, labels):
+                if pred == target:
+                    total_correct += 1
+            
+            total_samples += images.size(0)
+    
+    avg_loss = total_loss / total_samples
+    accuracy = total_correct / total_samples
+    return avg_loss, accuracy
 def test(args, device):
     args.device = device
     print('\n'+'-' * 80)
@@ -45,6 +74,21 @@ def test(args, device):
         # Load the Model from the saved_model path
         # Call validation function to evaluate the model
         # Print the accuracy and loss
+    # Create an instance of the ConverterForCTC
+    converter = ConverterForCTC(args.character)
+    
+    # Load the Model from the saved_model path
+    model = Model(args)
+    model.load_state_dict(torch.load(args.saved_model))
+    model.to(device)
+    
+    # Define the loss function using torch.nn.CTCLoss
+    criterion = nn.CTCLoss(blank=0, reduction='mean')
+    
+    # Evaluate the model
+    avg_loss, accuracy = validation(model, criterion, valid_loader, converter, args, device)
+    
+    print("Validation Loss: {:.4f}, Accuracy: {:.4f}".format(avg_loss, accuracy))
 
 
 if __name__ == '__main__':
