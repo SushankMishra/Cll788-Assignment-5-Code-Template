@@ -81,15 +81,20 @@ def train(args, device):
         train_loss = 0.0
         for i, (images, labels) in enumerate(train_loader):
             images = images.to(device)
-            labels, label_lengths = converter.encode(labels)
+            input_lengths = []
+            labels = labels.cpu().numpy()
+            labels = labels.astype(str)
+            labels, label_lengths = converter.encode(list(labels), batch_max_length=args.batch_max_length)
             labels = labels.to(device)
             
             optimizer.zero_grad()
             
             outputs = model(images)
-            output_lengths = torch.IntTensor([outputs.size(1)] * outputs.size(0))
-            
-            loss = criterion(outputs, labels, output_lengths, label_lengths)
+            for op in outputs:
+                input_lengths.append(len(op))
+            input_lengths = torch.LongTensor([outputs.size(0)] * images.size(0))
+            # input_lengths = torch.IntTensor([outputs.size(1)] * outputs.size(0))
+            loss = criterion(outputs, labels, input_lengths, label_lengths)
             loss.backward()
             optimizer.step()
             

@@ -83,7 +83,7 @@ def test(args, device):
     model.to(device)
     
     # Define the loss function using torch.nn.CTCLoss
-    criterion = nn.CTCLoss(blank=0, reduction='mean')
+    criterion = nn.CTCLoss(blank=0, reduction='mean',zero_infinity=True)
     
     # Evaluate the model
     avg_loss, accuracy = validation(model, criterion, valid_loader, converter, args, device)

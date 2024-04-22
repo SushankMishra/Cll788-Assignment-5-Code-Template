@@ -14,16 +14,17 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 from PIL import Image
 class Num10kDataset(Dataset):
+    @staticmethod
     def text_to_dict(file_path):
-            word_dict = {}
-            with open(file_path, 'r') as file:
-                for line in file:
-                    text, number_str = line.strip().split()
-                    # Convert the number string to an integer
-                    number = int(number_str)
-                    # Assign text as key and number as value in the dictionary
-                    word_dict[text] = number
-            return word_dict
+        word_dict = {}
+        with open(file_path, 'r') as file:
+            for line in file:
+                text, number_str = line.strip().split()
+                # Convert the number string to an integer
+                number = int(number_str)
+                # Assign text as key and number as value in the dictionary
+                word_dict[text] = number
+        return word_dict
     
     def __init__(self, root_dir, transform=None):
         self.root_dir = root_dir
@@ -33,9 +34,10 @@ class Num10kDataset(Dataset):
         # To-do: Load the images and labels from the folder
         files = os.listdir(root_dir)
         files = sorted(files)
-        label_file = 'labels.txt'
+        label_file = "labels.txt"
+        label_dict = {}
         if label_file in files:
-            label_dict = text_to_dict(os.path.join(root_dir,label_file))
+            label_dict = self.text_to_dict(os.path.join(root_dir,label_file))
         for filename in files:
             if filename.endswith('.jpg'):
                 self.images.append(os.path.join(root_dir,filename))
@@ -71,16 +73,33 @@ class AlignCollate(object):
         self.imgH = imgH
         self.imgW = imgW
         self.input_channel = input_channel
-        
+        self.transform = transforms.Compose([
+            transforms.Resize((imgH, imgW)),  # Resize without maintaining aspect ratio
+            transforms.ToTensor(),
+            # Add normalization if needed
+        ])
     def __call__(self, batch):
         images, labels = zip(*batch)
         aligned_images = []
 
-        for img in images:
-            img = self.resize_image(img, self.imgH, self.imgW)
-            aligned_images.append(img)
+        for image in images:
+
+            preprocess = transforms.Compose([
+                transforms.Pad(( int((self.imgW-image.size[0])/2) , int((self.imgH-image.size[1])/2) ), fill=255),
+                transforms.Resize((self.imgH, self.imgW)),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]
+                )
+            ])
+
+            image = preprocess(image)
+            aligned_images.append(image)
 
         aligned_images = torch.stack(aligned_images, dim=0)
+        # print(f"{aligned_images.shape = }")
+        # aligned_images = torch.tensor(aligned_images)
         labels = torch.tensor(labels)
 
         return aligned_images, labels
@@ -89,28 +108,3 @@ class AlignCollate(object):
             # Normalize the image and convert it to a tensor (If NOT already done in the Num10kDataset)
             # Concatenate the images in the batch to form a single tensor
         # Return the aligned image and corresponding labels
-    def resize_image(self, image, imgH, imgW):
-        """
-        Resize image while maintaining aspect ratio
-        """
-        width, height = image.size
-        aspect_ratio = width / height
-
-        target_ratio = imgW / imgH
-
-        if aspect_ratio > target_ratio:
-            new_width = int(imgH * aspect_ratio)
-            resized_image = image.resize((new_width, imgH), Image.BILINEAR)
-            left_pad = (new_width - imgW) // 2
-            right_pad = new_width - imgW - left_pad
-            padded_image = Image.new('RGB', (new_width, imgH))
-            padded_image.paste(resized_image, (left_pad, 0))
-        else:
-            new_height = int(imgW / aspect_ratio)
-            resized_image = image.resize((imgW, new_height), Image.BILINEAR)
-            top_pad = (new_height - imgH) // 2
-            bottom_pad = new_height - imgH - top_pad
-            padded_image = Image.new('RGB', (imgW, new_height))
-            padded_image.paste(resized_image, (0, top_pad))
-
-        return padded_image

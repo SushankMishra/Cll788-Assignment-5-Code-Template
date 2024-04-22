@@ -7,13 +7,12 @@ Code Template For Assignment 5 of the course CLL788 at IIT Delhi.
 ```
 WRITE YOUR TRAINING COMMAND HERE
 ```
-<!-- Example: python3 train.py --train_data Num10kDataset/train/ --valid_data Num10kDataset/val/ --num_epochs 10 --batch_size 32 -->
-
+python3 train.py --train_data ./Num10k-Dataset-main/train/ --valid_data ./Num10k-Dataset-main/val/ --num_epochs 10 --batch_size 32 --batch_max_length 25 --imgH 1000 --imgW 1000
 2. Testing
 ```
 WRITE YOUR TRAINING COMMAND HERE
 ```
-<!-- Example: python3 test.py --saved_model saved_models/best_model.pth --valid_data Num10kDataset/val/ -->
+python3 test.py --valid_data ./Num10k-Dataset-main/val/ --num_epochs 10 --batch_size 32 --batch_max_length 25 --imgH 1000 --imgW 1000
 
 ## Course Details
 
